@@ -112,6 +112,18 @@ def curaddr():
     return curactor().address
 
 
+def register(name, address):
+    """Associates the name C{name} with the address C{address}."""
+    curactor().node.register(name, address)
+
+
+def whereis(name):
+    """Returns the address registered under C{name}, or C{None} if the
+    name is not registered.
+    """
+    return curactor().node.whereis(name)
+
+
 def is_actor_type(obj):
     """Return True if obj is a subclass of Actor, False if not.
     """
@@ -573,6 +585,25 @@ class Node(object):
         self._mesh = mesh
         self.actors = weakref.WeakValueDictionary()
         mesh.add(self)
+        self.registry = {}
+
+    def register(self, name, address):
+        """Associates the name C{name} with the process C{address}."""
+        assert address.node_id == self.id
+        if address.actor_id not in self.actors:
+            raise DeadActor()
+        if name in self.registry:
+            raise Exception("Conflicting name")
+        actor = self.actors[address.actor_id]
+        self.registry[name] = actor
+        actor._link(lambda _: self.registry.pop(name))
+
+    def whereis(self, name):
+        """Return address of registered name C{name} or C{None} if
+        there's no address with that name.
+        """
+        if name in self.registry:
+            return self.registry[name].address
 
     def wait(self, address, timeout=None):
         """Wait for actor designated by address to finish."""
