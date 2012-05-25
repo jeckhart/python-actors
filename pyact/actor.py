@@ -632,7 +632,7 @@ class Node(object):
     def send(self, address, message):
         """Send a message to an actor on this node or another one.
         """
-        self.mesh.cast(address, json.dumps(message, default=handle_custom))
+        self._mesh.cast(address, json.dumps(message, default=handle_custom))
 
     def _cast(self, address, message):
         """For internal use.
