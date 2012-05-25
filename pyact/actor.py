@@ -21,23 +21,16 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-#import sys
-#import traceback
-#import urlparse
 import uuid
 import weakref
-#import base64
-
 
 try:
     import simplejson as json
 except ImportError:
     import json
-import msgpack
 
 from gevent import Greenlet, Timeout, local, core
 from gevent.event import Event
-#from gevent.queue import Queue
 from gevent.hub import GreenletExit
 import gevent
 
@@ -52,26 +45,22 @@ class ActorError(RuntimeError):
 class Killed(ActorError):
     """Exception which is raised when an Actor is killed.
     """
-    pass
 
 
 class DeadActor(ActorError):
     """Exception which is raised when a message is sent to an Address which
     refers to an Actor which is no longer running.
     """
-    pass
 
 
 class ReceiveTimeout(ActorError):
     """Internal exception used to signal receive timeouts.
     """
-    pass
 
 
 class InvalidCallMessage(ActorError):
     """Message doesn't match call message shape.
     """
-    pass
 
 
 class RemoteAttributeError(ActorError, AttributeError):
@@ -323,7 +312,6 @@ class Actor(object):
     """
 
     _wevent = None
-    _mailbox = lazy_property('_p_mailbox', lambda self: [])
     _args = (), {}
 
     actor_id = property(lambda self: self._actor_id)
@@ -340,6 +328,7 @@ class Actor(object):
         self.start_later = self.greenlet.start_later
         self.node = node
         self.mesh = mesh
+        self._mailbox = []
         self.address = Address(node.id, self._actor_id)
 
     def spawn(self, spawnable, *args, **kw):
