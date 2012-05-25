@@ -15,6 +15,12 @@ to arrive in it's mailbox.
 
 [1] https://bitbucket.org/fzzzy/python-actors
 
+Requirements:
+
+ * gevent 0.13
+ * simplejson
+ * a large dose of patience
+
 # What Is an Actor?
 
 * An actor is a process
