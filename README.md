@@ -32,21 +32,109 @@ to arrive in it's mailbox.
 * Isolates error handling code
 * Makes it easier to build fault tolerant distributed systems
 
-# How Are Actors Implemented in Python Actors?
+# How Are Actors Implemented in python-actors?
 
-* Use gevent and greenlet Green Threads to Implement Processes
-* This doesn't provide real isolation
-* But python doesn't provide private either
+*gevent* and greenlet threads are used to implement the actor
+processes.  This doesn't provide real isolation: but python doesn't
+provide private either.
 
-# Copy Messages As They Are Sent Between Actors
+When messages are sent between actors they are serialized to json and
+copied.  This provides isolation and makes the messages network safe.
 
-* This provides good enough isolation
-* We can serialize/deserialize with simplejson to copy
-* This also makes messages network safe
-* Other more optimized implementations possible
-
-# Problem: Imported Modules Leak State Between Actors
+Problem: Imported modules leak state between actors
 
 * Possibility: Keep a unique copy of sys.modules for every actor
 * Possibility: Seal modules in wrapper object preventing modification
 * Reality: Just write code that doesn't abuse global module state
+
+# How To Use python-actors
+
+Most stuff lives in the `pyact` package and in the `actor` module:
+
+ * `pyact.actor.Mesh` represents the mesh of connected nodes.
+ * `pyact.actor.Node` is a local node.
+ * `pyact.actor.Actor` is an actor.
+
+To get going you need to create a mesh and a local node:
+
+    mesh = actor.Mesh()
+    node = actor.Node(mesh, 'cookie@localhost.local:3433')
+
+The second argument to `Node` is the name of the node.  The format is
+`COOKIE@HOST:PORT`.  The cookie is used to create some kind of
+security: two nodes must have the same cookie to be able to
+communicate.  The *HOST* and *PORT* arguments give the network
+location of the node.
+
+When the node is set up the first actor can be created:
+
+    address = node.spawn(fn)
+
+`fn` is a function that receives a *receive* funcion as the first
+argument.
+
+There are two ways to create an actor: either by subclassing `Actor`
+or by just passing a function to `spawn`.  Arguments passed to `spawn`
+are forwarded to the actor:
+
+    def forward(receive, address):
+        pat, data = receive()
+        address | data
+
+    def build(receive, n):
+        ring = []
+        for i in range(n):
+            if not ring:
+                node = actor.spawn(forward, actor.curaddr())
+            else:
+                node = actor.spawn(forward, ring[-1])
+            ring.append(node)
+            gevent.sleep()
+
+        ring[-1] | {'text': 'hello around the ring'}
+        pat, data = receive()
+        return data
+
+    mesh = actor.Mesh()
+    node = actor.Node(mesh, 'cookie@localhost.local:3433')
+    addr = node.spawn(build, 10000)
+    print node.wait(addr)
+
+This passes *10000* as `n` to the actor function `build`.  This
+creates 10,000 sub-actors, where actor N will forward any received
+message to actor N+1 and then die.  When all actors has been created a
+message is sent through the ring.
+
+Worth noting is the `curaddr()` function that returns the address of
+the current actor.  Another neat function is the `node.wait` function
+that waits for a local actor to finish and returns the result.
+
+## Receiving Messages
+
+`python-actors` has just like Erlang selective receive.  This means
+that if messages in the mailbox will be left there if the call to
+*receive* do not provide a matching pattern.
+
+Patterns are python objects that can contain "wildcard types".  A
+simple example is the following dictionary pattern: `{"name": int}`.
+This will match `{"name": 1}` but not `{"name": "data"}`.  The type
+`object` will match anything.
+
+    DATA = ('data', str)
+    EVENT = {'event': str, 'data': object}
+
+    pat, msg = receive(DATA, EVENT)
+    if pat is DATA:
+       print "we got some data", msg[1]
+    if pat is EVENT:
+       print "wow, an event", msg['event'], msg['data']
+
+Note that tuples must match is length.  This is not true for lists,
+which is used to match arrays.  The first element in an array match is
+a type: `[str]` will match `['a', 'b']` but not `[1, 'b']`.
+
+# Roadmap
+
+* Get remote nodes working so we can build actual networks
+* Proper linking and monitoring
+* Create basic constructs such as supervisors and routers
